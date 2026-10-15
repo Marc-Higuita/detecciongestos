@@ -1,13 +1,11 @@
 import base64
 import platform
 import numpy as np
+import pandas as pd
 from PIL import Image
 import streamlit as st
 
-# Usar tf_keras explícitamente para cargar modelos legacy de Teachable Machine
-import tf_keras as keras
-
-# 1. Configuración de página
+# 1. Configuración de página de Streamlit
 st.set_page_config(
     page_title="Reconocimiento de Imágenes | Vision AI",
     page_icon="👁️",
@@ -15,7 +13,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 2. Inyección CSS Glassmorphism en tonos Azul Oscuro
+# 2. Inyección CSS Glassmorphism
 st.markdown("""
 <style>
     .stApp {
@@ -74,21 +72,32 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ----------------- LÓGICA DEL PROFESOR CON DISEÑO -----------------
-
+# Encabezado con versión de Python
 st.markdown(f"""
     <div style='background: rgba(15, 23, 42, 0.6); padding: 8px 16px; border-radius: 8px; border: 1px solid rgba(56, 189, 248, 0.2); display: inline-block; margin-bottom: 15px;'>
         <p class='sub-text' style='margin:0;'>🐍 <b>Versión de Python:</b> {platform.python_version()}</p>
     </div>
 """, unsafe_allow_html=True)
 
-# Carga segura con tf_keras
+# Carga del modelo protegida contra fallos fatales
 @st.cache_resource
 def load_tm_model():
-    return keras.models.load_model('keras_model.h5', compile=False)
+    try:
+        import tensorflow as tf
+        from tensorflow.keras.models import load_model
+        from tensorflow.keras.layers import DepthwiseConv2D
 
-model = load_tm_model()
-data = np.ndarray(shape=(1, 224, 224, 3), dtype=np.float32)
+        class CustomDepthwiseConv2D(DepthwiseConv2D):
+            def __init__(self, *args, **kwargs):
+                kwargs.pop('groups', None)
+                super().__init__(*args, **kwargs)
+
+        model = load_model('keras_model.h5', custom_objects={'DepthwiseConv2D': CustomDepthwiseConv2D}, compile=False)
+        return model, None
+    except Exception as e:
+        return None, str(e)
+
+model, model_error = load_tm_model()
 
 st.markdown("""
     <div class="glass-card">
@@ -102,6 +111,7 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
+# Muestra imagen inicial en base64
 try:
     with open("OIG5.jpg", "rb") as f:
         b64 = base64.b64encode(f.read()).decode()
@@ -123,28 +133,31 @@ with st.sidebar:
     st.markdown("---")
     st.subheader("Usando un modelo entrenado en teachable Machine puedes Usarlo en esta app para identificar")
 
-img_file_buffer = st.camera_input("Toma una Foto")
+if model_error:
+    st.error(f"❌ Error al cargar 'keras_model.h5': {model_error}")
+    st.info("Asegúrate de que el archivo 'keras_model.h5' esté presente en la raíz del repositorio.")
+else:
+    img_file_buffer = st.camera_input("Toma una Foto")
 
-if img_file_buffer is not None:
-    data = np.ndarray(shape=(1, 224, 224, 3), dtype=np.float32)
-    img = Image.open(img_file_buffer)
+    if img_file_buffer is not None:
+        data = np.ndarray(shape=(1, 224, 224, 3), dtype=np.float32)
+        img = Image.open(img_file_buffer)
 
-    newsize = (224, 224)
-    img = img.resize(newsize)
-    img_array = np.array(img)
+        newsize = (224, 224)
+        img = img.resize(newsize)
+        img_array = np.array(img)
 
-    normalized_image_array = (img_array.astype(np.float32) / 127.0) - 1
-    data[0] = normalized_image_array
+        normalized_image_array = (img_array.astype(np.float32) / 127.0) - 1
+        data[0] = normalized_image_array
 
-    prediction = model.predict(data)
-    print(prediction)
+        prediction = model.predict(data)
 
-    st.markdown("""<div class="glass-card">""", unsafe_allow_html=True)
-    if prediction[0][0] > 0.5:
-        st.markdown(f"<h2 style='color: #38bdf8;'>Izquierda, con Probabilidad: {prediction[0][0]:.4f}</h2>", unsafe_allow_html=True)
-    if prediction[0][1] > 0.5:
-        st.markdown(f"<h2 style='color: #818cf8;'>Arriba, con Probabilidad: {prediction[0][1]:.4f}</h2>", unsafe_allow_html=True)
-    st.markdown("""</div>""", unsafe_allow_html=True)
+        st.markdown("""<div class="glass-card">""", unsafe_allow_html=True)
+        if prediction[0][0] > 0.5:
+            st.markdown(f"<h2 style='color: #38bdf8;'>Izquierda, con Probabilidad: {prediction[0][0]:.4f}</h2>", unsafe_allow_html=True)
+        if prediction[0][1] > 0.5:
+            st.markdown(f"<h2 style='color: #818cf8;'>Arriba, con Probabilidad: {prediction[0][1]:.4f}</h2>", unsafe_allow_html=True)
+        st.markdown("""</div>""", unsafe_allow_html=True)
 
 st.markdown("---")
 st.markdown("<p style='text-align: center;' class='sub-text'>Aplicaciones con Visión Artificial | Interfaz Multimodal</p>", unsafe_allow_html=True)
