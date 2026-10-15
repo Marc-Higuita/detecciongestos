@@ -1,8 +1,6 @@
 streamlit
-tensorflow-cpu
-keras
-numpy
+tensorflow==2.15.0
+tf-keras
+pillow
+numpy<2.0.0
 pandas
-opencv-python-headless
-Pillow
-streamlit-webrtc
