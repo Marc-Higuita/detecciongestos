@@ -3,10 +3,9 @@ import platform
 import cv2
 import numpy as np
 from PIL import Image, ImageOps
-from keras.models import load_model
 import streamlit as st
 
-# 1. Configuración de página de Streamlit
+# 1. Configuración de página
 st.set_page_config(
     page_title="Reconocimiento de Imágenes | Vision AI",
     page_icon="👁️",
@@ -14,7 +13,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 2. Inyección de CSS estilo Glassmorphism y tonos azul oscuro
+# 2. Inyección CSS Glassmorphism
 st.markdown("""
 <style>
     .stApp {
@@ -22,17 +21,14 @@ st.markdown("""
         color: #f3f4f6;
         font-family: 'Inter', system-ui, -apple-system, sans-serif;
     }
-
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-
     [data-testid="stSidebar"] {
         background: rgba(15, 23, 42, 0.75) !important;
         backdrop-filter: blur(12px);
         -webkit-backdrop-filter: blur(12px);
         border-right: 1px solid rgba(56, 189, 248, 0.15);
     }
-
     .glass-card {
         background: rgba(30, 41, 59, 0.45);
         backdrop-filter: blur(16px);
@@ -43,7 +39,6 @@ st.markdown("""
         margin-bottom: 20px;
         box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
     }
-
     .gradient-text {
         background: linear-gradient(90deg, #38bdf8 0%, #818cf8 100%);
         -webkit-background-clip: text;
@@ -53,19 +48,16 @@ st.markdown("""
         align-items: center;
         gap: 10px;
     }
-
     .sub-text {
         color: #94a3b8;
         font-size: 0.95rem;
     }
-
     div[data-testid="stCameraInput"] {
         border: 2px dashed rgba(56, 189, 248, 0.4);
         border-radius: 16px;
         padding: 10px;
         background: rgba(15, 23, 42, 0.3);
     }
-
     .icon-svg {
         width: 22px;
         height: 22px;
@@ -80,20 +72,30 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ------------------- CÓDIGO ORIGINAL DEL PROFESOR CON DISEÑO -------------------
-
-# Muestra la versión de Python junto con detalles adicionales
+# Version de Python
 st.markdown(f"""
     <div style='background: rgba(15, 23, 42, 0.6); padding: 8px 16px; border-radius: 8px; border: 1px solid rgba(56, 189, 248, 0.2); display: inline-block; margin-bottom: 15px;'>
         <p class='sub-text' style='margin:0;'>🐍 <b>Versión de Python:</b> {platform.python_version()}</p>
     </div>
 """, unsafe_allow_html=True)
 
-# Carga del modelo de Keras exactamente como lo tenía el profe
-model = load_model('keras_model.h5')
+# CARGA COMPATIBLE DEL MODELO DEL PROFESOR
+@st.cache_resource
+def get_model():
+    import tensorflow as tf
+    from tensorflow.keras.models import load_model
+    from tensorflow.keras.layers import DepthwiseConv2D
+
+    class CustomDepthwiseConv2D(DepthwiseConv2D):
+        def __init__(self, *args, **kwargs):
+            kwargs.pop('groups', None)
+            super().__init__(*args, **kwargs)
+
+    return load_model('keras_model.h5', custom_objects={'DepthwiseConv2D': CustomDepthwiseConv2D}, compile=False)
+
+model = get_model()
 data = np.ndarray(shape=(1, 224, 224, 3), dtype=np.float32)
 
-# Encabezado principal
 st.markdown("""
     <div class="glass-card">
         <h1 class="gradient-text" style="margin:0;">
@@ -106,7 +108,6 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# Render de imagen base64 original del profesor dentro de tarjeta Glassmorphism
 try:
     with open("OIG5.jpg", "rb") as f:
         b64 = base64.b64encode(f.read()).decode()
@@ -118,7 +119,6 @@ try:
 except Exception:
     pass
 
-# Barra lateral del profesor
 with st.sidebar:
     st.markdown("""
         <h1 class='gradient-text' style='font-size: 1.6rem;'>
@@ -132,22 +132,16 @@ with st.sidebar:
 img_file_buffer = st.camera_input("Toma una Foto")
 
 if img_file_buffer is not None:
-    # To read image file buffer with OpenCV:
     data = np.ndarray(shape=(1, 224, 224, 3), dtype=np.float32)
-    # To read image file buffer as a PIL Image:
     img = Image.open(img_file_buffer)
 
     newsize = (224, 224)
     img = img.resize(newsize)
-    # To convert PIL Image to numpy array:
     img_array = np.array(img)
 
-    # Normalize the image
     normalized_image_array = (img_array.astype(np.float32) / 127.0) - 1
-    # Load the image into the array
     data[0] = normalized_image_array
 
-    # run the inference
     prediction = model.predict(data)
     print(prediction)
 
@@ -158,6 +152,5 @@ if img_file_buffer is not None:
         st.markdown(f"<h2 style='color: #818cf8;'>Arriba, con Probabilidad: {prediction[0][1]:.4f}</h2>", unsafe_allow_html=True)
     st.markdown("""</div>""", unsafe_allow_html=True)
 
-# Footer informativo
 st.markdown("---")
 st.markdown("<p style='text-align: center;' class='sub-text'>Aplicaciones con Visión Artificial | Interfaz Multimodal</p>", unsafe_allow_html=True)
