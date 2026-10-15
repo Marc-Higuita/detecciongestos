@@ -5,7 +5,7 @@ import pandas as pd
 from PIL import Image, ImageOps
 import streamlit as st
 
-# 1. Configuración de la página
+# 1. Configuración de página
 st.set_page_config(
     page_title="Gestos AI | Interfaz Multimodal",
     page_icon="🤖",
@@ -79,22 +79,31 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 3. Función para cargar el modelo parcheando DepthwiseConv2D
+# 3. Función de carga compatible con Teachable Machine
 @st.cache_resource
 def load_keras_model():
     try:
+        # Forzamos tf_keras si Keras 3 está presente en el entorno
+        import os
+        os.environ["TF_USE_LEGACY_KERAS"] = "1"
         import tensorflow as tf
-        from keras.models import load_model
-        from keras.layers import DepthwiseConv2D
 
-        # Parche para omitir el argumento 'groups' incompatible en Teachable Machine
+        # Usar tf.keras o tf_keras directamente
+        try:
+            import tf_keras as keras_engine
+            from tf_keras.layers import DepthwiseConv2D
+        except ImportError:
+            import tensorflow.keras as keras_engine
+            from tensorflow.keras.layers import DepthwiseConv2D
+
         class CustomDepthwiseConv2D(DepthwiseConv2D):
             def __init__(self, *args, **kwargs):
                 kwargs.pop('groups', None)
                 super().__init__(*args, **kwargs)
 
         custom_objects = {'DepthwiseConv2D': CustomDepthwiseConv2D}
-        return load_model('keras_model.h5', custom_objects=custom_objects, compile=False)
+        model = keras_engine.models.load_model('keras_model.h5', custom_objects=custom_objects, compile=False)
+        return model
     except Exception as e:
         st.error(f"Error al cargar 'keras_model.h5': {str(e)}")
         return None
