@@ -1,8 +1,5 @@
-keras
 streamlit
-streamlit-webrtc
-numpy
+tensorflow-cpu
 opencv-python-headless
-Pillow
-tensorflow==2.12
-
+pillow
+numpy
