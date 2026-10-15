@@ -5,7 +5,7 @@ import pandas as pd
 from PIL import Image, ImageOps
 import streamlit as st
 
-# 1. Configuración de página
+# 1. Configuración de la página
 st.set_page_config(
     page_title="Gestos AI | Interfaz Multimodal",
     page_icon="🤖",
@@ -13,7 +13,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 2. Inyección de CSS estilo Glassmorphism
+# 2. CSS estilo Glassmorphism
 st.markdown("""
 <style>
     .stApp {
@@ -79,22 +79,13 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 3. Función de carga compatible con Teachable Machine
+# 3. Función de carga que soluciona la incompatibilidad de Teachable Machine
 @st.cache_resource
 def load_keras_model():
     try:
-        # Forzamos tf_keras si Keras 3 está presente en el entorno
-        import os
-        os.environ["TF_USE_LEGACY_KERAS"] = "1"
         import tensorflow as tf
-
-        # Usar tf.keras o tf_keras directamente
-        try:
-            import tf_keras as keras_engine
-            from tf_keras.layers import DepthwiseConv2D
-        except ImportError:
-            import tensorflow.keras as keras_engine
-            from tensorflow.keras.layers import DepthwiseConv2D
+        from keras.models import load_model
+        from keras.layers import DepthwiseConv2D
 
         class CustomDepthwiseConv2D(DepthwiseConv2D):
             def __init__(self, *args, **kwargs):
@@ -102,11 +93,14 @@ def load_keras_model():
                 super().__init__(*args, **kwargs)
 
         custom_objects = {'DepthwiseConv2D': CustomDepthwiseConv2D}
-        model = keras_engine.models.load_model('keras_model.h5', custom_objects=custom_objects, compile=False)
-        return model
+        return load_model('keras_model.h5', custom_objects=custom_objects, compile=False)
     except Exception as e:
-        st.error(f"Error al cargar 'keras_model.h5': {str(e)}")
-        return None
+        try:
+            import tensorflow as tf
+            return tf.keras.models.load_model('keras_model.h5', compile=False)
+        except Exception as e2:
+            st.error(f"Error al cargar 'keras_model.h5': {str(e2)}")
+            return None
 
 # 4. Carga de etiquetas
 def load_labels():
