@@ -1,6 +1,7 @@
 import base64
 import platform
 import numpy as np
+import pandas as pd
 from PIL import Image
 import streamlit as st
 
@@ -78,6 +79,26 @@ st.markdown(f"""
     </div>
 """, unsafe_allow_html=True)
 
+# Carga limpia del modelo
+@st.cache_resource
+def load_tm_model():
+    try:
+        import tensorflow as tf
+        from tensorflow.keras.models import load_model
+        from tensorflow.keras.layers import DepthwiseConv2D
+
+        class CustomDepthwiseConv2D(DepthwiseConv2D):
+            def __init__(self, *args, **kwargs):
+                kwargs.pop('groups', None)
+                super().__init__(*args, **kwargs)
+
+        model = load_model('keras_model.h5', custom_objects={'DepthwiseConv2D': CustomDepthwiseConv2D}, compile=False)
+        return model, None
+    except Exception as e:
+        return None, str(e)
+
+model, model_error = load_tm_model()
+
 # Encabezado principal
 st.markdown("""
     <div class="glass-card">
@@ -91,7 +112,6 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# Intenta mostrar la imagen inicial en base64 solo si existe el archivo
 try:
     with open("OIG5.jpg", "rb") as f:
         b64 = base64.b64encode(f.read()).decode()
@@ -102,25 +122,6 @@ try:
     """, unsafe_allow_html=True)
 except Exception:
     pass
-
-# Carga segura del modelo
-@st.cache_resource
-def load_tm_model():
-    try:
-        import tensorflow as tf
-        from tensorflow.keras.models import load_model
-        from tensorflow.keras.layers import DepthwiseConv2D
-
-        class CustomDepthwiseConv2D(DepthwiseConv2D):
-            def __init__(self, *args, **kwargs):
-                kwargs.pop('groups', None)
-                super().__init__(*args, **kwargs)
-
-        return load_model('keras_model.h5', custom_objects={'DepthwiseConv2D': CustomDepthwiseConv2D}, compile=False), None
-    except Exception as e:
-        return None, str(e)
-
-model, model_error = load_tm_model()
 
 with st.sidebar:
     st.markdown("""
@@ -134,7 +135,7 @@ with st.sidebar:
 
 if model_error:
     st.error(f"❌ Error al cargar 'keras_model.h5': {model_error}")
-    st.info("Verifica que el archivo 'keras_model.h5' esté presente en la raíz del repositorio.")
+    st.info("Asegúrate de que el archivo 'keras_model.h5' esté en la raíz del repositorio.")
 else:
     img_file_buffer = st.camera_input("Toma una Foto")
 
