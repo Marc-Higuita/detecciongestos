@@ -1,9 +1,11 @@
 import base64
 import platform
-import cv2
 import numpy as np
-from PIL import Image, ImageOps
+from PIL import Image
 import streamlit as st
+
+# Usar tf_keras explícitamente para cargar modelos legacy de Teachable Machine
+import tf_keras as keras
 
 # 1. Configuración de página
 st.set_page_config(
@@ -13,7 +15,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 2. Inyección CSS Glassmorphism
+# 2. Inyección CSS Glassmorphism en tonos Azul Oscuro
 st.markdown("""
 <style>
     .stApp {
@@ -72,28 +74,20 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Version de Python
+# ----------------- LÓGICA DEL PROFESOR CON DISEÑO -----------------
+
 st.markdown(f"""
     <div style='background: rgba(15, 23, 42, 0.6); padding: 8px 16px; border-radius: 8px; border: 1px solid rgba(56, 189, 248, 0.2); display: inline-block; margin-bottom: 15px;'>
         <p class='sub-text' style='margin:0;'>🐍 <b>Versión de Python:</b> {platform.python_version()}</p>
     </div>
 """, unsafe_allow_html=True)
 
-# CARGA COMPATIBLE DEL MODELO DEL PROFESOR
+# Carga segura con tf_keras
 @st.cache_resource
-def get_model():
-    import tensorflow as tf
-    from tensorflow.keras.models import load_model
-    from tensorflow.keras.layers import DepthwiseConv2D
+def load_tm_model():
+    return keras.models.load_model('keras_model.h5', compile=False)
 
-    class CustomDepthwiseConv2D(DepthwiseConv2D):
-        def __init__(self, *args, **kwargs):
-            kwargs.pop('groups', None)
-            super().__init__(*args, **kwargs)
-
-    return load_model('keras_model.h5', custom_objects={'DepthwiseConv2D': CustomDepthwiseConv2D}, compile=False)
-
-model = get_model()
+model = load_tm_model()
 data = np.ndarray(shape=(1, 224, 224, 3), dtype=np.float32)
 
 st.markdown("""
