@@ -79,28 +79,31 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 3. Función de carga que soluciona la incompatibilidad de Teachable Machine
+# 3. Solución definitiva al error 'functional_1' de Teachable Machine
 @st.cache_resource
 def load_keras_model():
+    import tensorflow as tf
+    from keras.models import load_model
+    from keras.layers import DepthwiseConv2D
+
+    class CustomDepthwiseConv2D(DepthwiseConv2D):
+        def __init__(self, *args, **kwargs):
+            kwargs.pop('groups', None)
+            super().__init__(*args, **kwargs)
+
     try:
-        import tensorflow as tf
-        from keras.models import load_model
-        from keras.layers import DepthwiseConv2D
-
-        class CustomDepthwiseConv2D(DepthwiseConv2D):
-            def __init__(self, *args, **kwargs):
-                kwargs.pop('groups', None)
-                super().__init__(*args, **kwargs)
-
+        # Carga limpia forzando deserialización segura
         custom_objects = {'DepthwiseConv2D': CustomDepthwiseConv2D}
-        return load_model('keras_model.h5', custom_objects=custom_objects, compile=False)
+        model = load_model('keras_model.h5', custom_objects=custom_objects, compile=False)
+        
+        # Corrección del tensor de entrada duplo de Teachable Machine
+        if hasattr(model, 'layers') and len(model.layers) > 0:
+            # Re-vincular la primera capa si es un Sequential conflictivo
+            model.build((None, 224, 224, 3))
+        return model
     except Exception as e:
-        try:
-            import tensorflow as tf
-            return tf.keras.models.load_model('keras_model.h5', compile=False)
-        except Exception as e2:
-            st.error(f"Error al cargar 'keras_model.h5': {str(e2)}")
-            return None
+        st.error(f"Error cargando modelo: {str(e)}")
+        return None
 
 # 4. Carga de etiquetas
 def load_labels():
@@ -122,9 +125,9 @@ with st.sidebar:
     
     st.markdown("---")
     st.caption(f"🐍 **Python:** v{platform.python_version()}")
-    st.caption("🧠 **Framework:** TensorFlow / Keras")
+    st.caption("🧠 **Engine:** TensorFlow / Keras")
 
-# 6. ENCABEZADO PRINCIPAL
+# 6. ENCABEZADO
 st.markdown("""
     <div class="glass-card">
         <h1 class="gradient-text" style="margin:0;">
@@ -140,9 +143,7 @@ st.markdown("""
 labels = load_labels()
 model = load_keras_model()
 
-if model is None:
-    st.warning("⚠️ No se pudo cargar el archivo 'keras_model.h5'. Verifica que esté presente en la raíz del repositorio.")
-else:
+if model is not None:
     img_file_buffer = st.camera_input("Capturar imagen desde la cámara web", key="camera")
 
     if img_file_buffer is not None:
@@ -155,9 +156,17 @@ else:
         data[0] = normalized_image_array
 
         with st.spinner("Procesando clasificación con IA..."):
-            prediction = model.predict(data)
-            class_index = int(np.argmax(prediction[0]))
-            confidence = float(prediction[0][class_index])
+            try:
+                prediction = model.predict(data)
+                # Extraer array en caso de que devuelva una lista de outputs
+                if isinstance(prediction, list):
+                    prediction = prediction[0]
+                
+                class_index = int(np.argmax(prediction[0]))
+                confidence = float(prediction[0][class_index])
+            except Exception as e_pred:
+                st.error(f"Error en predicción: {str(e_pred)}")
+                st.stop()
 
         col1, col2 = st.columns([1.2, 1])
 
