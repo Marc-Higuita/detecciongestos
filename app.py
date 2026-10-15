@@ -5,7 +5,7 @@ import pandas as pd
 from PIL import Image, ImageOps
 import streamlit as st
 
-# 1. Configuración de la página
+# 1. Configuración de página
 st.set_page_config(
     page_title="Gestos AI | Interfaz Multimodal",
     page_icon="🤖",
@@ -79,7 +79,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 3. Solución definitiva al error 'functional_1' de Teachable Machine
+# 3. Carga segura del modelo anulando el chequeo de entrada doble
 @st.cache_resource
 def load_keras_model():
     import tensorflow as tf
@@ -92,17 +92,11 @@ def load_keras_model():
             super().__init__(*args, **kwargs)
 
     try:
-        # Carga limpia forzando deserialización segura
-        custom_objects = {'DepthwiseConv2D': CustomDepthwiseConv2D}
-        model = load_model('keras_model.h5', custom_objects=custom_objects, compile=False)
-        
-        # Corrección del tensor de entrada duplo de Teachable Machine
-        if hasattr(model, 'layers') and len(model.layers) > 0:
-            # Re-vincular la primera capa si es un Sequential conflictivo
-            model.build((None, 224, 224, 3))
-        return model
+        # Carga desacoplada
+        raw_model = load_model('keras_model.h5', custom_objects={'DepthwiseConv2D': CustomDepthwiseConv2D}, compile=False)
+        return raw_model
     except Exception as e:
-        st.error(f"Error cargando modelo: {str(e)}")
+        st.error(f"Error al cargar 'keras_model.h5': {str(e)}")
         return None
 
 # 4. Carga de etiquetas
@@ -157,16 +151,15 @@ if model is not None:
 
         with st.spinner("Procesando clasificación con IA..."):
             try:
-                prediction = model.predict(data)
-                # Extraer array en caso de que devuelva una lista de outputs
-                if isinstance(prediction, list):
-                    prediction = prediction[0]
-                
+                # Inferencia directa omitiendo chequeo estricto de firma
+                prediction = model(data, training=False).numpy()
                 class_index = int(np.argmax(prediction[0]))
                 confidence = float(prediction[0][class_index])
-            except Exception as e_pred:
-                st.error(f"Error en predicción: {str(e_pred)}")
-                st.stop()
+            except Exception:
+                # Fallback si retorna lista
+                prediction = model.predict(data)
+                class_index = int(np.argmax(prediction[0]))
+                confidence = float(prediction[0][class_index])
 
         col1, col2 = st.columns([1.2, 1])
 
