@@ -5,7 +5,7 @@ import pandas as pd
 from PIL import Image
 import streamlit as st
 
-# 1. Configuración de página de Streamlit
+# 1. Configuración de la página
 st.set_page_config(
     page_title="Reconocimiento de Imágenes | Vision AI",
     page_icon="👁️",
@@ -72,14 +72,14 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Encabezado con versión de Python
+# Muestra versión de Python
 st.markdown(f"""
     <div style='background: rgba(15, 23, 42, 0.6); padding: 8px 16px; border-radius: 8px; border: 1px solid rgba(56, 189, 248, 0.2); display: inline-block; margin-bottom: 15px;'>
         <p class='sub-text' style='margin:0;'>🐍 <b>Versión de Python:</b> {platform.python_version()}</p>
     </div>
 """, unsafe_allow_html=True)
 
-# Carga limpia del modelo
+# Carga del modelo parcheando la capa DepthwiseConv2D
 @st.cache_resource
 def load_tm_model():
     try:
@@ -112,6 +112,7 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
+# Render de la imagen base64
 try:
     with open("OIG5.jpg", "rb") as f:
         b64 = base64.b64encode(f.read()).decode()
@@ -135,7 +136,6 @@ with st.sidebar:
 
 if model_error:
     st.error(f"❌ Error al cargar 'keras_model.h5': {model_error}")
-    st.info("Asegúrate de que el archivo 'keras_model.h5' esté en la raíz del repositorio.")
 else:
     img_file_buffer = st.camera_input("Toma una Foto")
 
@@ -150,7 +150,11 @@ else:
         normalized_image_array = (img_array.astype(np.float32) / 127.0) - 1
         data[0] = normalized_image_array
 
-        prediction = model.predict(data)
+        # Inferencia llamando directamente al objeto ejecutable
+        try:
+            prediction = model(data, training=False).numpy()
+        except Exception:
+            prediction = model.predict(data)
 
         st.markdown("""<div class="glass-card">""", unsafe_allow_html=True)
         if prediction[0][0] > 0.5:
