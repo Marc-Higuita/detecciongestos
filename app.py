@@ -13,7 +13,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 2. CSS estilo Glassmorphism
+# 2. CSS Glassmorphism
 st.markdown("""
 <style>
     .stApp {
@@ -21,17 +21,14 @@ st.markdown("""
         color: #f3f4f6;
         font-family: 'Inter', system-ui, -apple-system, sans-serif;
     }
-
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-
     [data-testid="stSidebar"] {
         background: rgba(15, 23, 42, 0.75) !important;
         backdrop-filter: blur(12px);
         -webkit-backdrop-filter: blur(12px);
         border-right: 1px solid rgba(56, 189, 248, 0.15);
     }
-
     .glass-card {
         background: rgba(30, 41, 59, 0.45);
         backdrop-filter: blur(16px);
@@ -42,7 +39,6 @@ st.markdown("""
         margin-bottom: 20px;
         box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
     }
-
     .gradient-text {
         background: linear-gradient(90deg, #38bdf8 0%, #818cf8 100%);
         -webkit-background-clip: text;
@@ -52,19 +48,16 @@ st.markdown("""
         align-items: center;
         gap: 10px;
     }
-
     .sub-text {
         color: #94a3b8;
         font-size: 0.95rem;
     }
-
     div[data-testid="stCameraInput"] {
         border: 2px dashed rgba(56, 189, 248, 0.4);
         border-radius: 16px;
         padding: 10px;
         background: rgba(15, 23, 42, 0.3);
     }
-
     .icon-svg {
         width: 22px;
         height: 22px;
@@ -79,27 +72,35 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 3. Carga segura del modelo anulando el chequeo de entrada doble
+# 3. CARGA COMPATIBLE PARA TEACHABLE MACHINE EN KERAS 3
 @st.cache_resource
 def load_keras_model():
     import tensorflow as tf
-    from keras.models import load_model
-    from keras.layers import DepthwiseConv2D
-
-    class CustomDepthwiseConv2D(DepthwiseConv2D):
-        def __init__(self, *args, **kwargs):
-            kwargs.pop('groups', None)
-            super().__init__(*args, **kwargs)
-
+    
+    # Desactivar compilación rígida
+    tf.config.set_visible_devices([], 'GPU') if hasattr(tf.config, 'set_visible_devices') else None
+    
     try:
-        # Carga desacoplada
-        raw_model = load_model('keras_model.h5', custom_objects={'DepthwiseConv2D': CustomDepthwiseConv2D}, compile=False)
-        return raw_model
+        from keras.models import load_model
+        from keras.layers import DepthwiseConv2D
+
+        class CustomDepthwiseConv2D(DepthwiseConv2D):
+            def __init__(self, *args, **kwargs):
+                kwargs.pop('groups', None)
+                super().__init__(*args, **kwargs)
+
+        # Cargar ignorando la compilación y sobreescribiendo el extractor
+        model = load_model(
+            'keras_model.h5',
+            custom_objects={'DepthwiseConv2D': CustomDepthwiseConv2D},
+            compile=False,
+            safe_mode=False
+        )
+        return model
     except Exception as e:
         st.error(f"Error al cargar 'keras_model.h5': {str(e)}")
         return None
 
-# 4. Carga de etiquetas
 def load_labels():
     try:
         with open('labels.txt', 'r') as f:
@@ -107,7 +108,7 @@ def load_labels():
     except Exception:
         return ["0 Izquierda", "1 Arriba", "2 Derecha"]
 
-# 5. Barra Lateral
+# 4. BARRA LATERAL
 with st.sidebar:
     st.markdown("""
         <h1 class='gradient-text' style='font-size: 1.6rem;'>
@@ -116,12 +117,11 @@ with st.sidebar:
         </h1>
         <p class='sub-text'>Reconocimiento de Gestos</p>
     """, unsafe_allow_html=True)
-    
     st.markdown("---")
     st.caption(f"🐍 **Python:** v{platform.python_version()}")
     st.caption("🧠 **Engine:** TensorFlow / Keras")
 
-# 6. ENCABEZADO
+# 5. ENCABEZADO
 st.markdown("""
     <div class="glass-card">
         <h1 class="gradient-text" style="margin:0;">
@@ -151,15 +151,18 @@ if model is not None:
 
         with st.spinner("Procesando clasificación con IA..."):
             try:
-                # Inferencia directa omitiendo chequeo estricto de firma
-                prediction = model(data, training=False).numpy()
+                # Inferencia directa llamando al objeto ejecutable de la red
+                prediction = model(data, training=False)
+                if hasattr(prediction, 'numpy'):
+                    prediction = prediction.numpy()
+                elif isinstance(prediction, list):
+                    prediction = prediction[0].numpy() if hasattr(prediction[0], 'numpy') else prediction[0]
+                    
                 class_index = int(np.argmax(prediction[0]))
                 confidence = float(prediction[0][class_index])
-            except Exception:
-                # Fallback si retorna lista
-                prediction = model.predict(data)
-                class_index = int(np.argmax(prediction[0]))
-                confidence = float(prediction[0][class_index])
+            except Exception as e_pred:
+                st.error(f"Error durante la inferencia: {str(e_pred)}")
+                st.stop()
 
         col1, col2 = st.columns([1.2, 1])
 
